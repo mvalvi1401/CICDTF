@@ -1,0 +1,109 @@
+#azure devops pipeline for terraform
+
+
+trigger:
+ branches:
+   include:
+     - main
+
+
+variables:
+  buildingconfig: 'RELEASE'
+
+
+
+stages:
+
+#========Infra Deploy ==========
+
+- stage: Deployinfra
+  jobs:
+  - job: TerraformInfra
+    pool:
+      vmimage: 'ubuntu-latest'
+    steps:
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: '1.5.0'
+
+
+    - script: terraform init 
+      workingDirectory: infra
+      displayname: 'terraform init'
+
+
+    - script: terraform plan -out=tfplan
+      workingDirectory: infra
+      displayname: 'Terraform plan'
+
+
+
+    - script: terraform apply -auto-approve tfplan
+      workingDirectory: infra
+      displayname: 'Terraform apply'
+
+
+#========Ci + CD ============
+
+
+- stage: BuildAndDeploy
+  dependsOn: Deployinfra
+  jobs: 
+  - job: buildjob
+    pool: 
+      vmimage: 'ubuntu-latest'
+      steps:
+      - task: useDotnet@2
+        inputs:
+          packageType: 'sdk'
+          version: '7.1.0'
+
+
+      - task: DotNetCoreCLI@2
+        inputs: 
+          command: 'restore'
+          projects: '**/*.cdproj'
+
+
+      - task: DotNetCoreCLI@2
+        inputs:
+          command: '**/*.csproj'
+          arguments: '--configuration $(buildconfig)'
+
+
+
+      - task: DotnetCoreCLI@2
+        inputs:
+          command: 'publish'
+          projects: '**/*.csproj'
+          arguments: '--output $(Build.ArtifactstagingDirectory)' 
+
+
+
+      - task: publishBuildingArtifacts@1
+        inputs:
+          pathtopublish: '$(Build.ArtifactstagingDirectory)' 
+          ArtifactName: 'drop'
+
+
+
+
+- deployment: DeployToAppservice
+  dependsOn: buildjob
+  environment: 'production'
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - task: AzureWebApp@1
+          inputs:
+            azuresubscription: 'AzureSP-Terraform'
+            appname: 'devops-webapp-auto'
+            package: '$(pipeline.Workspace)/drop/**/*.zip'
+
+
+
+
+
+
+
