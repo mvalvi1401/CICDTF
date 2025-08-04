@@ -1,0 +1,42 @@
+# =========================Automate azure pipeline for certificate ==================
+
+trigger:
+   branches:
+      include:
+        - main
+
+
+
+pool:
+  vmimage: 'windows-latest'    # use a microsoft-hosted windos agent
+
+
+variables: 
+   azureServiceConnection: 'MyAzureServiceConnection'    # your azure connection name
+   scriptpath: 'certbinding.ps1'          # your powershell script path
+
+
+
+stages:
+- stage: RunScript
+  displayName: 'Run Certificate Binding Script'
+  jobs:
+  - job: ExecuteScript
+    displayName: 'Execute powershell Script'
+    steps:
+
+
+
+
+    - checkout: self    # checkout source code(your script)
+
+
+    - task: AzurePowershell@5
+      name: CertBindingStep
+      inputs:
+        azuresubscription: '$(azureServiceConnection)'  # use your azure service connection
+        ScriptType: 'FilePath'
+        Scriptpath: '$(scriptpath)'     # path of your script
+        AzurePowershellVersion: 'LatestVersion'
+        Pwsh: true
+
